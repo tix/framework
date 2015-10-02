@@ -85,6 +85,51 @@ class SqlServerGrammar extends Grammar
     }
 
     /**
+     * Compile an update statement into SQL.
+     *
+     * @param  \Illuminate\Database\Query\Builder  $query
+     * @param  array  $values
+     * @return string
+     */
+    public function compileUpdate(Builder $query, $values)
+    {
+        $table = $this->wrapTable($query->from);
+
+        // Each one of the columns in the update statements needs to be wrapped in the
+        // keyword identifiers, also a place-holder needs to be created for each of
+        // the values in the list of bindings so we can make the sets statements.
+        $columns = [];
+
+        foreach ($values as $key => $value) {
+            $columns[] = $this->wrap($key).' = '.$this->parameter($value);
+        }
+
+        $columns = implode(', ', $columns);
+
+        // If the query has any "join" clauses, we will setup the joins on the builder
+        // and compile them so we can attach them to this update, as update queries
+        // can get join statements to attach to other tables when they're needed.
+        if (isset($query->joins)) {
+            $joins = ' '.$this->compileJoins($query, $query->joins);
+        } else {
+            $joins = '';
+        }
+
+        // Of course, update queries may also be constrained by where clauses so we'll
+        // need to compile the where clauses and attach it to the query so only the
+        // intended records are updated by the SQL statements we generate to run.
+        $where = $this->compileWheres($query);
+        if (!empty($joins)) {
+            $sql =  trim("update {$table} set $columns from {$table} {$joins} $where");
+        }
+        else {
+            $sql =  trim("update {$table} set $columns $where");
+        }
+
+        return $sql;
+    }
+
+    /**
      * Create a full ANSI offset clause for the query.
      *
      * @param  \Illuminate\Database\Query\Builder  $query
